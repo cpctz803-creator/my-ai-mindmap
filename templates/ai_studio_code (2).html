@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Mind Map Web</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .tree-node { margin-left: 20px; border-left: 2px solid #ddd; padding-left: 10px; }
+        .node-content { cursor: pointer; transition: background 0.2s; }
+        .node-content:hover { background-color: #f0f7ff; }
+        .loading { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-4 md:p-10">
+
+    <div class="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-lg">
+        <h1 class="text-2xl font-bold mb-6 text-blue-600">AI Automatic Mind Map Maker</h1>
+        
+        <!-- Input Section -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Gemini API Key</label>
+                <input type="password" id="apiKey" class="mt-1 block w-full border rounded-md p-2" placeholder="AIキーを入力">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">中心テーマ</label>
+                <input type="text" id="topic" class="mt-1 block w-full border rounded-md p-2" value="脱炭素">
+            </div>
+        </div>
+
+        <div class="flex gap-2 mb-8">
+            <button onclick="generateMap()" id="genBtn" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700">AI生成開始</button>
+            <button onclick="downloadJSON()" class="border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-100">JSON保存</button>
+        </div>
+
+        <div id="status" class="text-blue-500 mb-4 hidden">解析中...しばらくお待ちください。</div>
+
+        <!-- Tree View Container -->
+        <div id="treeContainer" class="border rounded-lg p-4 bg-white min-h-[400px] overflow-auto">
+            <p class="text-gray-400">生成されたマップがここに表示されます</p>
+        </div>
+    </div>
+
+    <script>
+        let currentData = null;
+
+        async function generateMap() {
+            const apiKey = document.getElementById('apiKey').value;
+            const topic = document.getElementById('topic').value;
+            const btn = document.getElementById('genBtn');
+            const status = document.getElementById('status');
+
+            if (!apiKey || !topic) return alert("入力してください");
+
+            btn.disabled = true;
+            status.classList.remove('hidden');
+            
+            try {
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: apiKey, topic: topic })
+                });
+                
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+                
+                currentData = data;
+                renderTree();
+            } catch (err) {
+                alert("エラー: " + err.message);
+            } finally {
+                btn.disabled = false;
+                status.classList.add('hidden');
+            }
+        }
+
+        function renderTree() {
+            const container = document.getElementById('treeContainer');
+            container.innerHTML = "";
+            const rootUl = document.createElement('ul');
+            rootUl.appendChild(createNodeElement(currentData));
+            container.appendChild(rootUl);
+        }
+
+        function createNodeElement(node) {
+            const li = document.createElement('li');
+            li.className = "my-2";
+            
+            const div = document.createElement('div');
+            div.className = "node-content p-2 rounded border inline-block mb-1";
+            div.innerHTML = `<span class="font-semibold">● ${node.text}</span>`;
+            
+            // ダブルクリックで再生成の代わりに、シンプルにするためクリックイベントを付与可能
+            div.title = "配下を再生成（機能拡張用）";
+            
+            li.appendChild(div);
+
+            if (node.children && node.children.length > 0) {
+                const ul = document.createElement('ul');
+                ul.className = "tree-node";
+                node.children.forEach(child => {
+                    ul.appendChild(createNodeElement(child));
+                });
+                li.appendChild(ul);
+            }
+            return li;
+        }
+
+        function downloadJSON() {
+            if (!currentData) return;
+            const blob = new Blob([JSON.stringify(currentData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "mindmap.json";
+            a.click();
+        }
+    </script>
+</body>
+</html>
